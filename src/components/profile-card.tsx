@@ -26,7 +26,7 @@ export function ProfileCard({
   shouldMatchHeight = false
 }: ProfileCardProps) {
   return (
-    <Card className={`flex flex-col ${shouldMatchHeight ? 'h-full' : ''}`}>
+    <Card className={`flex flex-col ${shouldMatchHeight ? 'h-full' : 'min-h-[500px]'}`}>
       <div className="p-6 text-center">
         <div className="flex flex-col items-center space-y-3">
           <img 
