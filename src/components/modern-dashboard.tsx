@@ -177,7 +177,9 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
           </div>
         </div>
 
-        <div className="flex lg:gap-8 gap-4 flex-col lg:flex-row lg:items-start">
+        <div className={`flex lg:gap-8 gap-4 flex-col lg:flex-row ${
+          !showAllRepos ? 'lg:items-stretch' : 'lg:items-start'
+        }`}>
           {/* Left Sidebar - User Profile */}
           <div className="lg:w-80 w-full flex-shrink-0">
             <ProfileCard
@@ -185,6 +187,7 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
               selectedReposCount={selectedRepos.size}
               onGenerateResume={handleGenerateResume}
               isGeneratingResume={isGeneratingResume}
+              shouldMatchHeight={!showAllRepos}
             />
           </div>
 

@@ -15,16 +15,18 @@ interface ProfileCardProps {
   selectedReposCount: number
   onGenerateResume: () => void
   isGeneratingResume: boolean
+  shouldMatchHeight?: boolean
 }
 
 export function ProfileCard({ 
   user, 
   selectedReposCount, 
   onGenerateResume, 
-  isGeneratingResume 
+  isGeneratingResume,
+  shouldMatchHeight = false
 }: ProfileCardProps) {
   return (
-    <Card className="flex flex-col">
+    <Card className={`flex flex-col ${shouldMatchHeight ? 'h-full' : ''}`}>
       <div className="p-6 text-center">
         <div className="flex flex-col items-center space-y-3">
           <img 
