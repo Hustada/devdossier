@@ -82,6 +82,9 @@ export const classicTemplate: ResumeTemplate = {
       border-radius: 15px;
       font-size: 0.9em;
       font-weight: 500;
+      -webkit-print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .project { 
       margin-bottom: 25px; 
@@ -310,6 +313,32 @@ export const modernTemplate: ResumeTemplate = {
         min-height: auto;
         padding: 20px;
       }
+    }
+    /* Enhanced styles for PDF export */
+    .sidebar {
+      -webkit-print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      background-color: ${data.primaryColor} !important;
+    }
+    .skill-tag-sidebar {
+      -webkit-print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      background-color: rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    /* Force background colors in all browsers */
+    @page {
+      -webkit-print-color-adjust: exact;
+      color-adjust: exact;
+    }
+    
+    /* Additional fallback styles */
+    body {
+      -webkit-print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .footer {
       margin-top: 50px;

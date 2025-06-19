@@ -4,10 +4,13 @@ import { GitHubRepository } from '@/lib/github-api'
 import { RepositoryMatch } from '@/lib/ai-resume-agent'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from './ui/tooltip'
 import { 
   Star, 
   GitFork, 
-  Calendar
+  Calendar,
+  HelpCircle,
+  Target
 } from 'lucide-react'
 
 interface RepositoryCardProps {
@@ -57,16 +60,45 @@ export function RepositoryCard({
             <div className="flex items-center space-x-2 mb-1">
               <CardTitle className="text-lg truncate">{repository.name}</CardTitle>
               {matchData && (
-                <Badge 
-                  variant="outline" 
-                  className={`text-xs ${
-                    matchData.confidenceLevel === 'high' ? 'bg-green-50 text-green-700 border-green-200' :
-                    matchData.confidenceLevel === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                    'bg-gray-50 text-gray-600 border-gray-200'
-                  }`}
-                >
-                  {matchData.matchScore}% match
-                </Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs cursor-help ${
+                          matchData.confidenceLevel === 'high' ? 'bg-green-50 text-green-700 border-green-200' :
+                          matchData.confidenceLevel === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                          'bg-gray-50 text-gray-600 border-gray-200'
+                        }`}
+                      >
+                        {matchData.matchScore}% match
+                        <HelpCircle className="w-3 h-3 ml-1" />
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <div className="space-y-2">
+                        <div className="font-semibold flex items-center gap-1">
+                          <Target className="w-3 h-3" />
+                          Match Score: {matchData.matchScore}%
+                        </div>
+                        <div className="text-xs space-y-1">
+                          <div>Confidence: <span className="font-medium capitalize">{matchData.confidenceLevel}</span></div>
+                          {matchData.relevantTechnologies.length > 0 && (
+                            <div>Technologies: <span className="font-medium">{matchData.relevantTechnologies.join(', ')}</span></div>
+                          )}
+                          <div className="border-t pt-1 mt-1">
+                            <div className="font-medium">Why this score?</div>
+                            <ul className="space-y-0.5">
+                              {matchData.reasoning.map((reason, index) => (
+                                <li key={index} className="text-xs">• {reason}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
             {repository.description && (

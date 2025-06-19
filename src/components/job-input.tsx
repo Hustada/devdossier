@@ -11,13 +11,17 @@ import {
   Target,
   Brain,
   X,
-  Loader2
+  Loader2,
+  Link,
+  Globe
 } from 'lucide-react'
+import { JobUrlAgent } from '@/lib/job-url-agent'
 
 interface JobInputProps {
   onJobAnalysis: (analysis: JobAnalysis) => void
   onClearJob: () => void
   isAnalyzing?: boolean
+  repoAnalysisStep?: string | null
 }
 
 export interface JobAnalysis {
@@ -29,33 +33,76 @@ export interface JobAnalysis {
   description: string
 }
 
-export function JobInput({ onJobAnalysis, onClearJob, isAnalyzing = false }: JobInputProps) {
+export function JobInput({ onJobAnalysis, onClearJob, isAnalyzing = false, repoAnalysisStep = null }: JobInputProps) {
   const [jobDescription, setJobDescription] = useState('')
   const [currentAnalysis, setCurrentAnalysis] = useState<JobAnalysis | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null)
+  const [loadingStep, setLoadingStep] = useState<string | null>(null)
 
   const handleAnalyze = async () => {
     if (!jobDescription.trim()) return
 
     try {
-      const response = await fetch('/api/ai/analyze-job', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ jobDescription: jobDescription.trim() }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const analysis = await response.json()
+      setLoadingStep('🔍 Analyzing input...')
       
-      setCurrentAnalysis(analysis)
-      onJobAnalysis(analysis)
+      // Check if the input contains a job URL
+      const detectedUrl = JobUrlAgent.detectJobUrl(jobDescription.trim())
+      
+      if (detectedUrl) {
+        // If URL is detected, use the JobUrlAgent to fetch and analyze
+        console.log('🔗 Job URL detected:', detectedUrl)
+        setLoadingStep('🔗 Job URL detected')
+        
+        await new Promise(resolve => setTimeout(resolve, 500)) // Brief pause to show step
+        setLoadingStep('📄 Fetching job content...')
+        
+        console.log('📄 Fetching and analyzing job content...')
+        const analysis = await JobUrlAgent.analyzeJobFromUrl(detectedUrl)
+        
+        setLoadingStep('🧠 Analyzing requirements...')
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        console.log('✅ Job analysis complete:', analysis)
+        setLoadingStep('✅ Analysis complete!')
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        setLoadingStep(null)
+        
+        setCurrentAnalysis(analysis)
+        onJobAnalysis(analysis)
+      } else {
+        // Traditional job description text analysis
+        setLoadingStep('📝 Analyzing job description...')
+        console.log('📝 Analyzing job description text...')
+        
+        const response = await fetch('/api/ai/analyze-job', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ jobDescription: jobDescription.trim() }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        setLoadingStep('🧠 Processing AI response...')
+        const analysis = await response.json()
+        
+        console.log('✅ Job analysis complete:', analysis)
+        setLoadingStep('✅ Analysis complete!')
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        setLoadingStep(null)
+        
+        setCurrentAnalysis(analysis)
+        onJobAnalysis(analysis)
+      }
     } catch (error) {
       console.error('Failed to analyze job description:', error)
+      setLoadingStep(null)
       // Show user-friendly error message
       alert('Failed to analyze job description. Please try again or check your internet connection.')
     }
@@ -65,7 +112,17 @@ export function JobInput({ onJobAnalysis, onClearJob, isAnalyzing = false }: Job
     setJobDescription('')
     setCurrentAnalysis(null)
     setIsExpanded(false)
+    setDetectedUrl(null)
+    setLoadingStep(null)
     onClearJob()
+  }
+
+  const handleInputChange = (value: string) => {
+    setJobDescription(value)
+    
+    // Detect URL as user types
+    const url = JobUrlAgent.detectJobUrl(value)
+    setDetectedUrl(url)
   }
 
   return (
@@ -97,14 +154,27 @@ export function JobInput({ onJobAnalysis, onClearJob, isAnalyzing = false }: Job
         {!currentAnalysis ? (
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground">
-              Paste a job description to get AI-curated repository recommendations that match the role requirements.
+              Paste a job description or job posting URL to get AI-curated repository recommendations that match the role requirements.
             </div>
+            
+            {detectedUrl && (
+              <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <Globe className="w-4 h-4 text-blue-600" />
+                <span className="text-sm text-blue-800">
+                  Job URL detected: <span className="font-medium">{new URL(detectedUrl).hostname}</span>
+                </span>
+                <Badge variant="secondary" className="ml-auto">
+                  <Link className="w-3 h-3 mr-1" />
+                  Auto-fetch
+                </Badge>
+              </div>
+            )}
             
             <div className="space-y-3">
               <Textarea
                 placeholder="Paste job description, requirements, or job posting URL here..."
                 value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
+                onChange={(e) => handleInputChange(e.target.value)}
                 className="min-h-[100px] resize-none"
                 disabled={isAnalyzing}
               />
@@ -112,13 +182,13 @@ export function JobInput({ onJobAnalysis, onClearJob, isAnalyzing = false }: Job
               <div className="flex space-x-2">
                 <Button
                   onClick={handleAnalyze}
-                  disabled={!jobDescription.trim() || isAnalyzing}
+                  disabled={!jobDescription.trim() || isAnalyzing || loadingStep !== null}
                   className="flex-1"
                 >
-                  {isAnalyzing ? (
+                  {isAnalyzing || loadingStep ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Analyzing...
+                      {loadingStep || 'Analyzing...'}
                     </>
                   ) : (
                     <>
@@ -154,6 +224,16 @@ export function JobInput({ onJobAnalysis, onClearJob, isAnalyzing = false }: Job
             <div className="flex items-center space-x-2 text-green-700">
               <Target className="w-4 h-4" />
               <span className="text-sm font-medium">Job Analysis Complete</span>
+            </div>
+            
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <div className="flex items-center space-x-2 text-orange-700 mb-2">
+                <Sparkles className="w-4 h-4" />
+                <span className="text-sm font-medium">AI Recommendation Active</span>
+              </div>
+              <p className="text-xs text-orange-600">
+                Repository selection will be automatically optimized for this job. You can still manually adjust selections below.
+              </p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -201,6 +281,16 @@ export function JobInput({ onJobAnalysis, onClearJob, isAnalyzing = false }: Job
                 Repository selection will be automatically optimized for this job. You can still manually adjust selections below.
               </div>
             </div>
+            
+            {/* Repository Analysis Progress */}
+            {repoAnalysisStep && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <div className="flex items-center space-x-2 text-blue-700">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm font-medium">{repoAnalysisStep}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

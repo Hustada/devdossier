@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { Card } from './ui/card'
 import { Button } from './ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { Download, FileText, Palette, Type, Eye, Edit } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog'
+import { Download, FileText, Palette, Type, Eye, Edit, AlertTriangle, Save, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { generateResumeHTML } from '@/lib/resume-templates'
-import { exportResumeFromHTML } from '@/lib/pdf-export'
 
 export interface ResumeData {
   name: string
@@ -34,16 +34,22 @@ interface ResumeEditorProps {
 
 export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: ResumeEditorProps) {
   const [resumeData, setResumeData] = useState<ResumeData>(initialData)
+  const [savedData, setSavedData] = useState<ResumeData>(initialData)
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState('preview')
   const [previewHtml, setPreviewHtml] = useState(resumeHtml)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [pendingAction, setPendingAction] = useState<'preview' | 'discard' | null>(null)
   
   // Update preview when component mounts with initial data
   useEffect(() => {
     if (!resumeHtml) {
       setPreviewHtml(generateResumeHTML(initialData))
     }
-  }, [])
+  }, [resumeHtml, initialData])
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = JSON.stringify(resumeData) !== JSON.stringify(savedData)
 
   const updateResumeData = (newData: ResumeData) => {
     setResumeData(newData)
@@ -75,21 +81,77 @@ export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: Resu
   }
 
   const handleEditToggle = () => {
-    setIsEditing(!isEditing)
-    if (!isEditing) {
-      setActiveTab('editor')
+    if (isEditing && hasUnsavedChanges) {
+      // Show save dialog if there are unsaved changes
+      setPendingAction('preview')
+      setShowSaveDialog(true)
+    } else {
+      // Safe to toggle without losing changes
+      setIsEditing(!isEditing)
+      if (!isEditing) {
+        setActiveTab('editor')
+      } else {
+        setActiveTab('preview')
+      }
+    }
+  }
+
+  const handleTabChange = (value: string) => {
+    if (value === 'preview' && isEditing && hasUnsavedChanges) {
+      // Show save dialog when switching to preview with unsaved changes
+      setPendingAction('preview')
+      setShowSaveDialog(true)
+    } else {
+      setActiveTab(value)
     }
   }
 
   const handleSave = () => {
     onSave?.(resumeData)
+    setSavedData({ ...resumeData }) // Update saved state
     setIsEditing(false)
     setActiveTab('preview')
+    setShowSaveDialog(false)
+    setPendingAction(null)
+  }
+
+  const handleSaveAndContinue = () => {
+    onSave?.(resumeData)
+    setSavedData({ ...resumeData })
+    
+    if (pendingAction === 'preview') {
+      setIsEditing(false)
+      setActiveTab('preview')
+    }
+    
+    setShowSaveDialog(false)
+    setPendingAction(null)
+  }
+
+  const handleDiscardAndContinue = () => {
+    setResumeData({ ...savedData })
+    setPreviewHtml(generateResumeHTML(savedData))
+    
+    if (pendingAction === 'preview') {
+      setIsEditing(false)
+      setActiveTab('preview')
+    }
+    
+    setShowSaveDialog(false)
+    setPendingAction(null)
+  }
+
+  const handleCancelDialog = () => {
+    setShowSaveDialog(false)
+    setPendingAction(null)
   }
 
   const handleExportPDF = async () => {
+    const filename = `${resumeData.name.replace(/\s+/g, '_')}_Resume.pdf`
+    
     try {
-      const filename = `${resumeData.name.replace(/\s+/g, '_')}_Resume.pdf`
+      // Use the original export method which was working
+      const { exportResumeFromHTML } = await import('@/lib/pdf-export')
       await exportResumeFromHTML(previewHtml, filename)
       onExport?.('pdf')
     } catch (error) {
@@ -110,6 +172,7 @@ export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: Resu
           >
             {isEditing ? <Eye className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
             {isEditing ? 'Preview' : 'Edit'}
+            {hasUnsavedChanges && <span className="text-orange-500">*</span>}
           </Button>
           <Button
             onClick={handleExportPDF}
@@ -181,7 +244,7 @@ export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: Resu
         {/* Main Content Area */}
         <div className="lg:col-span-3">
           <Card className="p-0 overflow-hidden">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
               <TabsList className="w-full rounded-none border-b">
                 <TabsTrigger value="preview" className="flex-1">
                   <Eye className="w-4 h-4 mr-2" />
@@ -363,7 +426,18 @@ export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: Resu
                     </Card>
 
                     <div className="flex justify-center gap-4">
-                      <Button variant="outline" onClick={() => setIsEditing(false)}>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          if (hasUnsavedChanges) {
+                            setPendingAction('preview')
+                            setShowSaveDialog(true)
+                          } else {
+                            setIsEditing(false)
+                            setActiveTab('preview')
+                          }
+                        }}
+                      >
                         Cancel
                       </Button>
                       <Button onClick={handleSave}>
@@ -377,6 +451,34 @@ export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: Resu
           </Card>
         </div>
       </div>
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Unsaved Changes
+            </DialogTitle>
+            <DialogDescription>
+              You have unsaved changes. What would you like to do?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCancelDialog}>
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+            <Button variant="outline" onClick={handleDiscardAndContinue}>
+              Discard Changes
+            </Button>
+            <Button onClick={handleSaveAndContinue}>
+              <Save className="w-4 h-4 mr-2" />
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -26,6 +26,7 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
   const [jobAnalysis, setJobAnalysis] = useState<JobAnalysis | null>(null)
   const [repositoryMatches, setRepositoryMatches] = useState<RepositoryMatch[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [repoAnalysisStep, setRepoAnalysisStep] = useState<string | null>(null)
   const [isGeneratingResume, setIsGeneratingResume] = useState(false)
   const [showResumeEditor, setShowResumeEditor] = useState(false)
   const [resumeData, setResumeData] = useState<ResumeData | null>(null)
@@ -47,6 +48,13 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
     setJobAnalysis(analysis)
     
     try {
+      setRepoAnalysisStep(`🎯 Starting AI analysis for ${analysis.jobTitle}`)
+      console.log('🎯 Starting repository scoring for job:', analysis.jobTitle)
+      
+      await new Promise(resolve => setTimeout(resolve, 500)) // Brief pause to show step
+      setRepoAnalysisStep(`📊 Analyzing ${allRepositories.length} repositories with AI`)
+      console.log('📊 Analyzing', allRepositories.length, 'repositories...')
+      
       const response = await fetch('/api/ai/score-repositories', {
         method: 'POST',
         headers: {
@@ -62,7 +70,11 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
+      setRepoAnalysisStep('🧠 Processing AI repository scores')
       const matches = await response.json()
+      
+      setRepoAnalysisStep('🎯 Auto-selecting best matching repositories')
+      console.log('✅ Repository scoring complete. Top matches:', matches.slice(0, 5).map((m: RepositoryMatch) => `${m.repository.name} (${m.matchScore}%)`))
       setRepositoryMatches(matches)
       
       // Auto-select repositories with high confidence scores
@@ -88,9 +100,16 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
         autoSelectMatches.push(...additionalMatches)
       }
       
+      setRepoAnalysisStep('✅ Repository analysis complete!')
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Show completion message
+      setRepoAnalysisStep(null)
+      
       setSelectedRepos(new Set(autoSelectMatches))
     } catch (error) {
       console.error('Failed to analyze repositories for job:', error)
+      setRepoAnalysisStep('❌ Repository analysis failed')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      setRepoAnalysisStep(null)
     } finally {
       setIsAnalyzing(false)
     }
@@ -100,6 +119,7 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
     setJobAnalysis(null)
     setRepositoryMatches([])
     setSelectedRepos(new Set())
+    setRepoAnalysisStep(null)
   }
 
   const handleGenerateResume = async () => {
@@ -278,6 +298,7 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
           onJobAnalysis={handleJobAnalysis}
           onClearJob={handleClearJob}
           isAnalyzing={isAnalyzing}
+          repoAnalysisStep={repoAnalysisStep}
         />
 
 

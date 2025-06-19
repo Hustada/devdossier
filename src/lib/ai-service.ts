@@ -88,7 +88,7 @@ export class AIService {
       systemPrompt?: string
     }
   ): Promise<T> {
-    const systemPrompt = `${options?.systemPrompt || ''}\n\nYou must respond with valid JSON that matches this schema:\n${schema}\n\nDo not include any text outside the JSON response.`
+    const systemPrompt = `${options?.systemPrompt || ''}\n\nYou must respond with ONLY valid JSON that matches this schema:\n${schema}\n\nIMPORTANT: Return ONLY the JSON object. Do not wrap it in markdown code blocks or include any other text.`
     
     const response = await this.generateText(prompt, {
       ...options,
@@ -96,12 +96,35 @@ export class AIService {
       temperature: options?.temperature || 0.3 // Lower temperature for structured data
     })
 
+    // Clean the response to handle markdown-wrapped JSON
+    const cleanedResponse = this.cleanJsonResponse(response)
+
     try {
-      return JSON.parse(response) as T
+      const parsed = JSON.parse(cleanedResponse) as T
+      return parsed
     } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', response, parseError)
-      throw new Error('AI response was not valid JSON')
+      console.error('Failed to parse AI response as JSON:', parseError)
+      throw new Error(`AI response was not valid JSON: ${parseError}`)
     }
+  }
+
+  private cleanJsonResponse(response: string): string {
+    // Remove any markdown code block formatting
+    const jsonBlockMatch = response.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
+    if (jsonBlockMatch) {
+      return jsonBlockMatch[1].trim()
+    }
+
+    // Remove any leading/trailing whitespace and non-JSON content
+    let cleaned = response.trim()
+    
+    // If the response starts with text before JSON, try to extract just the JSON
+    const jsonMatch = cleaned.match(/(\{[\s\S]*\})/)
+    if (jsonMatch) {
+      cleaned = jsonMatch[1]
+    }
+
+    return cleaned
   }
 
   // Fallback mechanism - try primary provider, then fallback
