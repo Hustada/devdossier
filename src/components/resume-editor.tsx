@@ -45,6 +45,11 @@ export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: Resu
     }
   }, [])
 
+  const updateResumeData = (newData: ResumeData) => {
+    setResumeData(newData)
+    setPreviewHtml(generateResumeHTML(newData))
+  }
+
   const templates = [
     { id: 'classic', name: 'Classic', description: 'Traditional professional layout' },
     { id: 'modern', name: 'Modern', description: 'Contemporary with sidebar' },
@@ -61,14 +66,12 @@ export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: Resu
 
   const handleTemplateChange = (templateId: string) => {
     const newData = { ...resumeData, template: templateId as ResumeData['template'] }
-    setResumeData(newData)
-    setPreviewHtml(generateResumeHTML(newData))
+    updateResumeData(newData)
   }
 
   const handleColorChange = (color: string) => {
     const newData = { ...resumeData, primaryColor: color }
-    setResumeData(newData)
-    setPreviewHtml(generateResumeHTML(newData))
+    updateResumeData(newData)
   }
 
   const handleEditToggle = () => {
@@ -205,14 +208,167 @@ export function ResumeEditor({ initialData, resumeHtml, onSave, onExport }: Resu
 
               <TabsContent value="editor" className="m-0 p-6">
                 {isEditing && (
-                  <div className="space-y-6">
-                    <div className="text-center text-gray-500">
-                      <Edit className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                      <p>Rich text editor coming soon!</p>
-                      <p className="text-sm mt-2">You&apos;ll be able to edit your resume content directly here.</p>
-                    </div>
-                    <div className="flex justify-center">
-                      <Button onClick={handleSave}>Save Changes</Button>
+                  <div className="space-y-6 max-w-2xl mx-auto">
+                    {/* Basic Info Section */}
+                    <Card className="p-4">
+                      <h3 className="font-semibold mb-4 flex items-center gap-2">
+                        <Type className="w-4 h-4" />
+                        Basic Information
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Full Name</label>
+                          <input
+                            type="text"
+                            value={resumeData.name}
+                            onChange={(e) => updateResumeData({ ...resumeData, name: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Job Title</label>
+                          <input
+                            type="text"
+                            value={resumeData.title}
+                            onChange={(e) => updateResumeData({ ...resumeData, title: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Professional Summary</label>
+                          <textarea
+                            value={resumeData.summary}
+                            onChange={(e) => updateResumeData({ ...resumeData, summary: e.target.value })}
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            placeholder="Write a brief professional summary highlighting your expertise and achievements..."
+                          />
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Skills Section */}
+                    <Card className="p-4">
+                      <h3 className="font-semibold mb-4">Technical Skills</h3>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Skills (comma-separated)</label>
+                        <textarea
+                          value={resumeData.skills.join(', ')}
+                          onChange={(e) => {
+                            const skills = e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                            updateResumeData({ ...resumeData, skills })
+                          }}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          placeholder="JavaScript, React, Node.js, Python, AWS..."
+                        />
+                      </div>
+                    </Card>
+
+                    {/* Projects Section */}
+                    <Card className="p-4">
+                      <h3 className="font-semibold mb-4">Projects</h3>
+                      <div className="space-y-4">
+                        {resumeData.projects.map((project, index) => (
+                          <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-lg">Project {index + 1}</h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const newProjects = resumeData.projects.filter((_, i) => i !== index)
+                                  updateResumeData({ ...resumeData, projects: newProjects })
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Project Name</label>
+                              <input
+                                type="text"
+                                value={project.name}
+                                onChange={(e) => {
+                                  const newProjects = [...resumeData.projects]
+                                  newProjects[index] = { ...project, name: e.target.value }
+                                  updateResumeData({ ...resumeData, projects: newProjects })
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Description</label>
+                              <textarea
+                                value={project.description}
+                                onChange={(e) => {
+                                  const newProjects = [...resumeData.projects]
+                                  newProjects[index] = { ...project, description: e.target.value }
+                                  updateResumeData({ ...resumeData, projects: newProjects })
+                                }}
+                                rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Technologies</label>
+                              <input
+                                type="text"
+                                value={project.technologies.join(', ')}
+                                onChange={(e) => {
+                                  const technologies = e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                                  const newProjects = [...resumeData.projects]
+                                  newProjects[index] = { ...project, technologies }
+                                  updateResumeData({ ...resumeData, projects: newProjects })
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                placeholder="React, Node.js, MongoDB..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Key Achievements</label>
+                              <textarea
+                                value={project.achievements.join('\n')}
+                                onChange={(e) => {
+                                  const achievements = e.target.value.split('\n').filter(s => s.trim())
+                                  const newProjects = [...resumeData.projects]
+                                  newProjects[index] = { ...project, achievements }
+                                  updateResumeData({ ...resumeData, projects: newProjects })
+                                }}
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                placeholder="• Increased performance by 40%&#10;• Implemented user authentication&#10;• Built responsive design"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const newProject = {
+                              name: 'New Project',
+                              description: '',
+                              technologies: [],
+                              achievements: [],
+                              url: ''
+                            }
+                            updateResumeData({ ...resumeData, projects: [...resumeData.projects, newProject] })
+                          }}
+                          className="w-full"
+                        >
+                          Add Project
+                        </Button>
+                      </div>
+                    </Card>
+
+                    <div className="flex justify-center gap-4">
+                      <Button variant="outline" onClick={() => setIsEditing(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSave}>
+                        Save Changes
+                      </Button>
                     </div>
                   </div>
                 )}
