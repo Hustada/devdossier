@@ -38,20 +38,26 @@ export function JobInput({ onJobAnalysis, onClearJob, isAnalyzing = false }: Job
     if (!jobDescription.trim()) return
 
     try {
-      // This will be replaced with actual AI analysis
-      const mockAnalysis: JobAnalysis = {
-        jobTitle: "Machine Learning Engineer",
-        requiredTechnologies: ["Python", "TensorFlow", "PyTorch", "AWS", "Docker"],
-        experienceLevel: "mid",
-        jobType: "Machine Learning",
-        keySkills: ["Model Development", "Data Pipeline", "MLOps", "Deep Learning"],
-        description: jobDescription.trim()
+      const response = await fetch('/api/ai/analyze-job', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ jobDescription: jobDescription.trim() }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      setCurrentAnalysis(mockAnalysis)
-      onJobAnalysis(mockAnalysis)
+      const analysis = await response.json()
+      
+      setCurrentAnalysis(analysis)
+      onJobAnalysis(analysis)
     } catch (error) {
       console.error('Failed to analyze job description:', error)
+      // Show user-friendly error message
+      alert('Failed to analyze job description. Please try again or check your internet connection.')
     }
   }
 

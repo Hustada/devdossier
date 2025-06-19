@@ -36,6 +36,22 @@ export interface GitHubLanguages {
   [language: string]: number
 }
 
+export interface GitHubCommit {
+  sha: string
+  commit: {
+    author: {
+      name: string
+      email: string
+      date: string
+    }
+    message: string
+  }
+  author: {
+    login: string
+    avatar_url: string
+  } | null
+}
+
 export class GitHubAPI {
   private accessToken: string
   private baseUrl = 'https://api.github.com'
@@ -80,13 +96,14 @@ export class GitHubAPI {
       }
       
       return response.content
-    } catch (error) {
+    } catch (readmeError) {
       // README not found or not accessible
+      console.debug('README not found:', readmeError)
       return null
     }
   }
 
-  async getRepositoryCommits(owner: string, repo: string, per_page = 10): Promise<any[]> {
-    return this.makeRequest<any[]>(`/repos/${owner}/${repo}/commits?per_page=${per_page}`)
+  async getRepositoryCommits(owner: string, repo: string, per_page = 10): Promise<GitHubCommit[]> {
+    return this.makeRequest<GitHubCommit[]>(`/repos/${owner}/${repo}/commits?per_page=${per_page}`)
   }
 }

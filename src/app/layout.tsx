@@ -15,6 +15,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "DevDossier - AI-Powered Developer Resumes",
   description: "Transform your GitHub profile into a professional resume with AI-powered expertise. Create compelling developer portfolios in minutes.",
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/icon.png',
+  },
 };
 
 export default function RootLayout({

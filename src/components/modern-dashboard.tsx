@@ -3,13 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { GitHubUser, GitHubRepository } from '@/lib/github-api'
-import { AIResumeAgent, RepositoryMatch } from '@/lib/ai-resume-agent'
+import { RepositoryMatch } from '@/lib/ai-resume-agent'
 import { JobInput, JobAnalysis } from './job-input'
 import { ProfileCard } from './profile-card'
 import { RepositoryGrid } from './repository-grid'
 import { Footer } from './footer'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
+import { ResumeEditor, ResumeData } from './resume-editor'
 
 interface ModernDashboardProps {
   user: GitHubUser
@@ -26,6 +27,9 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
   const [repositoryMatches, setRepositoryMatches] = useState<RepositoryMatch[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isGeneratingResume, setIsGeneratingResume] = useState(false)
+  const [showResumeEditor, setShowResumeEditor] = useState(false)
+  const [resumeData, setResumeData] = useState<ResumeData | null>(null)
+  const [resumeHtml, setResumeHtml] = useState<string>('')
 
 
   const toggleRepoSelection = (repoName: string) => {
@@ -43,13 +47,48 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
     setJobAnalysis(analysis)
     
     try {
-      const aiAgent = new AIResumeAgent()
-      const matches = await aiAgent.scoreRepositoriesForJob(allRepositories, analysis)
+      const response = await fetch('/api/ai/score-repositories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          repositories: allRepositories,
+          jobAnalysis: analysis
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const matches = await response.json()
       setRepositoryMatches(matches)
       
-      // Auto-select top matching repositories
-      const topMatches = matches.slice(0, 6).map(match => match.repository.name)
-      setSelectedRepos(new Set(topMatches))
+      // Auto-select repositories with high confidence scores
+      const autoSelectMatches = matches
+        .filter((match: RepositoryMatch) => 
+          match.confidenceLevel === 'high' || 
+          (match.confidenceLevel === 'medium' && match.matchScore >= 50)
+        )
+        .slice(0, 5) // Limit to top 5 high-confidence matches
+        .map((match: RepositoryMatch) => match.repository.name)
+      
+      // If we have fewer than 3 high-confidence matches, add some medium confidence ones
+      if (autoSelectMatches.length < 3) {
+        const additionalMatches = matches
+          .filter((match: RepositoryMatch) => 
+            match.confidenceLevel === 'medium' && 
+            match.matchScore >= 30 &&
+            !autoSelectMatches.includes(match.repository.name)
+          )
+          .slice(0, 3 - autoSelectMatches.length)
+          .map((match: RepositoryMatch) => match.repository.name)
+        
+        autoSelectMatches.push(...additionalMatches)
+      }
+      
+      setSelectedRepos(new Set(autoSelectMatches))
     } catch (error) {
       console.error('Failed to analyze repositories for job:', error)
     } finally {
@@ -72,8 +111,6 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
     setIsGeneratingResume(true)
     
     try {
-      const aiAgent = new AIResumeAgent()
-      
       // Get repository matches for selected repos
       let selectedMatches: RepositoryMatch[]
       
@@ -87,21 +124,71 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
         const selectedRepoObjects = allRepositories.filter(repo => 
           selectedRepos.has(repo.name)
         )
-        selectedMatches = await aiAgent.selectBestRepositories(selectedRepoObjects)
+        
+        const response = await fetch('/api/ai/score-repositories', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            repositories: selectedRepoObjects,
+            jobAnalysis: null
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        selectedMatches = await response.json()
       }
       
-      const resumeResult = await aiAgent.generateResume(
-        user,
-        selectedMatches,
-        jobAnalysis || undefined
-      )
-      
-      // Open resume in new window
-      const newWindow = window.open('', '_blank')
-      if (newWindow) {
-        newWindow.document.write(resumeResult.resumeHtml)
-        newWindow.document.close()
+      const resumeResponse = await fetch('/api/ai/generate-resume', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userProfile: {
+            name: user.name || undefined,
+            login: user.login,
+            bio: user.bio || undefined
+          },
+          repositoryMatches: selectedMatches,
+          jobAnalysis: jobAnalysis || undefined
+        }),
+      })
+
+      if (!resumeResponse.ok) {
+        throw new Error(`HTTP ${resumeResponse.status}: ${resumeResponse.statusText}`)
       }
+
+      const resumeResult = await resumeResponse.json()
+      
+      // Use the structured resume data from AI or fallback to parsing
+      const resumeData: ResumeData = resumeResult.resumeData ? {
+        ...resumeResult.resumeData,
+        template: 'classic',
+        primaryColor: '#ff6b35'
+      } : {
+        name: user.name || user.login,
+        title: jobAnalysis?.jobTitle || 'Software Engineer',
+        summary: 'Experienced software engineer with a proven track record of building impactful projects.',
+        skills: Array.from(new Set(selectedMatches.flatMap(m => m.relevantTechnologies))),
+        projects: selectedMatches.map(match => ({
+          name: match.repository.name,
+          description: match.repository.description || '',
+          technologies: match.relevantTechnologies,
+          achievements: match.reasoning,
+          url: match.repository.html_url
+        })),
+        template: 'classic',
+        primaryColor: '#ff6b35'
+      }
+      
+      setResumeData(resumeData)
+      setResumeHtml(resumeResult.resumeHtml)
+      setShowResumeEditor(true)
       
     } catch (error) {
       console.error('Failed to generate resume:', error)
@@ -114,6 +201,54 @@ export function ModernDashboard({ user, repositories, allRepositories }: ModernD
   const handleSignOut = () => {
     localStorage.removeItem('github_access_token')
     router.push('/')
+  }
+
+  if (showResumeEditor && resumeData && resumeHtml) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-orange-50">
+        {/* Header */}
+        <div className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
+          <div className="container max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setShowResumeEditor(false)}
+                  className="mr-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Dashboard
+                </Button>
+                <h1 className="text-2xl font-bold text-orange-600">
+                  DevDossier
+                </h1>
+                <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700 border-orange-200">
+                  Resume Editor
+                </Badge>
+              </div>
+              <Button variant="outline" onClick={handleSignOut}>
+                Sign Out
+              </Button>
+            </div>
+          </div>
+        </div>
+        
+        <ResumeEditor
+          initialData={resumeData}
+          resumeHtml={resumeHtml}
+          onSave={(data) => {
+            setResumeData(data)
+            // TODO: Regenerate HTML with new template/data
+          }}
+          onExport={(format) => {
+            // TODO: Implement export functionality
+            console.log('Export format:', format)
+          }}
+        />
+      </div>
+    )
   }
 
   return (
